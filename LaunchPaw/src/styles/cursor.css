@@ -1,0 +1,21 @@
+/* Custom cursor styles */
+.cursor {
+  transform: scale(1);
+}
+
+.cursor-hover {
+  transform: scale(1.5);
+}
+
+.follower {
+  transform: scale(1);
+}
+
+.follower-hover {
+  transform: scale(1.5);
+}
+
+/* Hide default cursor */
+* {
+  cursor: none !important;
+}

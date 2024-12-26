@@ -1,57 +1,25 @@
-const { ethers } = require("hardhat");
+const hre = require("hardhat");
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying contracts with the account:", deployer.address);
+
+  const balance = await hre.ethers.provider.getBalance(deployer.address);
+  console.log("Account balance:", hre.ethers.utils.formatEther(balance), "ETH");
 
   // Deploying NativeLiquidityPool
   console.log("\nDeploying NativeLiquidityPool...");
-  const NativeLiquidityPool = await ethers.getContractFactory(
-    "NativeLiquidityPool"
-  );
+  const NativeLiquidityPool = await hre.ethers.getContractFactory("NativeLiquidityPool");
   const nativeLiquidityPool = await NativeLiquidityPool.deploy();
-  console.log("NativeLiquidityPool deployed to:", nativeLiquidityPool.target);
+  await nativeLiquidityPool.deployed();
+  console.log("NativeLiquidityPool deployed to:", nativeLiquidityPool.address);
 
   // Deploying TokenFactory
   console.log("\nDeploying TokenFactory...");
-  const TokenFactory = await ethers.getContractFactory("TokenFactory");
-  const tokenFactory = await TokenFactory.deploy(nativeLiquidityPool.target);
-  console.log("TokenFactory deployed to:", tokenFactory.target);
-
-  // // Creating MemeToken
-  // console.log("\nCreating MemeToken...");
-  // const createTokenTx = await tokenFactory.createMemeToken(
-  //   "MemeToken",
-  //   "MEME",
-  //   "https://ipfs.io/ipfs/QmZ8T1sQ9V1Zf2Q5Y2tZ5cYXo3v4p2VYv6u7mUuV4QwQ1d",
-  //   "A meme token", // Replace with the required ETH amount based on bonding curve cost
-  //   {
-  //     gasLimit: 5000000,
-  //   }
-  // );
-  // const createTokenReceipt = await createTokenTx.wait();
-  // console.log("MemeToken created in transaction:", createTokenReceipt);
-
-  // // function getMemeTokenCount() public view returns (uint) {
-  // console.log("\nGetting MemeToken count...");
-  // const memeTokenCount = await tokenFactory.getMemeTokenCount();
-  // console.log("MemeToken Count:", memeTokenCount.toString());
-
-  // // Retrieving the address of the created MemeToken
-  // const memeTokenAddress = await tokenFactory.memeTokenAddresses(0);
-  // console.log("\nMemeToken Address:", memeTokenAddress);
-
-  // // function getMemeTokenByIndex(uint index)
-  // console.log("\nGetting MemeToken by index...");
-  // for (let i = 0; i < memeTokenCount; i++) {
-  //   const memeToken = await tokenFactory.getMemeTokenByIndex(i);
-  //   console.log(`MemeToken at index ${i}:`, memeToken);
-  // }
-
-  // // function getAllMemeTokens()
-  // console.log("\nGetting all MemeTokens...");
-  // const allMemeTokens = await tokenFactory.getAllMemeTokens();
-  // console.log("All MemeTokens:", allMemeTokens);
+  const TokenFactory = await hre.ethers.getContractFactory("TokenFactory");
+  const tokenFactory = await TokenFactory.deploy(nativeLiquidityPool.address);
+  await tokenFactory.deployed();
+  console.log("TokenFactory deployed to:", tokenFactory.address);
 }
 
 main()

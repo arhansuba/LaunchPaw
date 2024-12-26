@@ -5,7 +5,7 @@ import "./Token.sol";
 import "./NativeLiquidityPool.sol";
 import "hardhat/console.sol";
 import "./IBondingCurvePrecompile.sol";
-import "./ITeleporterMessenge.sol";
+import "./ITeleporterMessenger.sol";
 import "./ITeleporterReceiver.sol";
 
 contract TokenFactory is ITeleporterReceiver {

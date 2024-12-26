@@ -1,32 +1,60 @@
+require("dotenv").config();
 require("@nomicfoundation/hardhat-toolbox");
 
-/** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: "0.8.25",
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.19",
+      },
+      {
+        version: "0.8.24",
+      },
+      {
+        version: "0.8.25",
+      },
+      {
+        version: "0.8.28",
+      },
+    ],
+  },
+  paths: {
+    artifacts: "./src",
+  },
   networks: {
-    skale: {
-      url: "https://testnet.skalenodes.com/v1/lanky-ill-funny-testnet",
-      accounts: [
-        "70da3ff3da418eee005a376ea30fe469fb5e78b7c36b35a24f369b3adbfdc61c",
-      ],
+    "edu-chain-testnet": {
+      // Testnet configuration
+      url: `https://rpc.open-campus-codex.gelato.digital`,
+      accounts: [process.env.ACCOUNT_PRIVATE_KEY],
     },
-    amoy: {
-      url: "https://rpc-amoy.polygon.technology",
-      accounts: [
-        "70da3ff3da418eee005a376ea30fe469fb5e78b7c36b35a24f369b3adbfdc61c",
-      ],
-    },
-    memeSubnet: {
-      url: "https://subnets.avacloud.io/cbef19a7-d2ba-47f7-a31d-190e4be54ba6",
-      accounts: [
-        "70da3ff3da418eee005a376ea30fe469fb5e78b7c36b35a24f369b3adbfdc61c",
-      ],
+    "edu-chain": {
+      // Mainnet configuration
+      url: `https://rpc.edu-chain.raas.gelato.cloud`,
+      accounts: [process.env.ACCOUNT_PRIVATE_KEY],
     },
   },
+  etherscan: {
+    apiKey: {
+      "edu-chain-testnet": "XXXX",
+      "edu-chain": "XXXX",
+    },
+    customChains: [
+      {
+        network: "edu-chain-testnet",
+        chainId: 656476,
+        urls: {
+          apiURL: "https://edu-chain-testnet.blockscout.com/api",
+          browserURL: "https://edu-chain-testnet.blockscout.com",
+        },
+      },
+      {
+        network: "edu-chain",
+        chainId: 41923, // Replace with the correct mainnet chain ID if different
+        urls: {
+          apiURL: "https://educhain.blockscout.com/api",
+          browserURL: "https://educhain.blockscout.com",
+        },
+      },
+    ],
+  },
 };
-
-// AMOY:
-// Deploying contracts with the account: 0xAddc0142a647aE0C1081d202d35D943C4A5c06d2
-// NFTCollection deployed to: 0xACEBf59C1bF0FdA1e5B936034aE6b57fB82ab770
-// RewardToken deployed to: 0x391371AC48F31fb5136ecC14B27d1aB547326d40
-// NFTStaking deployed to: 0xbd88E8CDAE3b6EcfD9513182288c5A95271d2386

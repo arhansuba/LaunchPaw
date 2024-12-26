@@ -1,29 +1,58 @@
 import { Chain } from "@rainbow-me/rainbowkit";
 
-export const memeSubnet = {
-  id: 1_337,
-  name: "MemeSubnet",
+export const eduChain = {
+  id: 31_337, // Using standard Hardhat chainId for local development
+  name: "EduChain",
   nativeCurrency: {
     decimals: 18,
-    name: "AVAX",
-    symbol: "AVAX",
+    name: "EDU",
+    symbol: "EDU",
   },
   rpcUrls: {
     public: {
       http: [
-        "https://subnets.avacloud.io/ed77962b-2d49-4396-bb3a-1a8efb172859",
+        "http://localhost:8545", // Local development
       ],
     },
     default: {
       http: [
-        "https://subnets.avacloud.io/ed77962b-2d49-4396-bb3a-1a8efb172859",
+        "http://localhost:8545", // Local development
       ],
     },
   },
   blockExplorers: {
     default: {
-      name: "Explorer",
-      url: "https://subnets.avacloud.io/ed77962b-2d49-4396-bb3a-1a8efb172859",
+      name: "Local Explorer",
+      url: "http://localhost:8545", // You can update this with your actual explorer URL
+    },
+  },
+} as const satisfies Chain;
+
+// In case you need testnet configuration
+export const eduChainTestnet = {
+  id: 31_338, // Different from local to avoid conflicts
+  name: "EduChain Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "EDU",
+    symbol: "EDU",
+  },
+  rpcUrls: {
+    public: {
+      http: [
+        "YOUR_TESTNET_RPC_URL", // Replace with actual testnet URL
+      ],
+    },
+    default: {
+      http: [
+        "YOUR_TESTNET_RPC_URL", // Replace with actual testnet URL
+      ],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Testnet Explorer",
+      url: "YOUR_TESTNET_EXPLORER_URL", // Replace with actual explorer URL
     },
   },
 } as const satisfies Chain;

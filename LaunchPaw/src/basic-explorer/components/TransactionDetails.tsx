@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import { Card } from "../../components/Card";
 
+
 interface Transaction {
   type: string;
   hash: string;
@@ -24,7 +25,7 @@ export const TransactionDetails = ({
     exit={{ opacity: 0, y: -20 }}
     className="mb-12"
   >
-    <Card title="Transaction Details" className="max-w-4xl mx-auto">
+    <Card title="Transaction Details" className="max-w-4xl mx-auto" children={undefined}>
       {/* Rest of the TransactionDetails component remains the same... */}
     </Card>
   </motion.div>

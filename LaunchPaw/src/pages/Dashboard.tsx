@@ -1,8 +1,8 @@
+"use client";
 import React, { useEffect, useState } from "react";
 import {
   Wallet,
   History,
-  Award,
   ChevronRight,
   Rocket,
   Users,
@@ -17,14 +17,9 @@ import { CONTRACT_ADDRESSES } from "../config/contracts";
 import { Link, useNavigate } from "react-router-dom";
 import { ethers } from "ethers";
 import BasicWallet from "../components/basic-wallet";
-import {
-  Erc1155TokenBalance,
-  Erc20TokenBalance,
-  TransactionDetails,
-} from "@avalabs/avacloud-sdk/models/components";
 import Chatbot from "../components/ChatBot";
 
-interface MemeToken {
+interface LaunchPawToken {
   name: string;
   symbol: string;
   description: string;
@@ -35,15 +30,24 @@ interface MemeToken {
   isLiquidityCreated: boolean;
 }
 
+interface Transaction {
+  hash: string;
+  from: string;
+  to: string;
+  value: bigint;
+  timestamp: number;
+  tokenName?: string;
+  tokenSymbol?: string;
+}
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const [launchedTokens, setLaunchedTokens] = useState<MemeToken[]>([]);
+  const [launchedTokens, setLaunchedTokens] = useState<LaunchPawToken[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recentTransactions, setRecentTransactions] =
-    useState<TransactionDetails>();
 
   useEffect(() => {
     const fetchLaunchedTokens = async () => {
@@ -63,33 +67,59 @@ const Dashboard = () => {
           signer
         );
 
-        const tokenCount = await contract.getMemeTokenCount();
-        const tokens: MemeToken[] = [];
+        // Get all tokens
+        const allTokens = await contract.getAllTokens();
+        const tokens: LaunchPawToken[] = [];
 
-        for (let i = 0; i < tokenCount; i++) {
-          const memeToken = await contract.getMemeTokenByIndex(i);
+        for (const tokenAddress of allTokens) {
+          const tokenInfo = await contract.getTokenInfo(tokenAddress);
           tokens.push({
-            name: memeToken[0],
-            symbol: memeToken[1],
-            description: memeToken[2],
-            tokenImageUrl: memeToken[3],
-            fundingRaised: memeToken[4],
-            tokenAddress: memeToken[5],
-            creatorAddress: memeToken[6],
-            isLiquidityCreated: memeToken[7],
+            name: tokenInfo.name,
+            symbol: tokenInfo.symbol,
+            description: tokenInfo.description,
+            tokenImageUrl: "", // Not using image URLs for now
+            fundingRaised: tokenInfo.currentFunding,
+            tokenAddress: tokenAddress,
+            creatorAddress: tokenInfo.creator,
+            isLiquidityCreated: tokenInfo.isLaunched
           });
         }
 
         // Filter tokens created by the current user
         const userTokens = tokens.filter(
-          (token) =>
-            token.creatorAddress.toLowerCase() === address.toLowerCase()
+          (token) => token.creatorAddress.toLowerCase() === address.toLowerCase()
         );
         setLaunchedTokens(userTokens);
+
+        // Fetch recent transactions
+        const latestBlock = await provider.getBlockNumber();
+        const fetchCount = 10; // Last 10 blocks
+        const transactions: Transaction[] = [];
+
+        for (let i = 0; i < fetchCount; i++) {
+          const block = await provider.getBlock(latestBlock - i, true);
+          if (block && block.transactions) {
+            for (const tx of block.transactions) {
+              if (typeof tx === 'string') continue;
+              const transaction = tx as ethers.TransactionResponse;
+              if (transaction.from.toLowerCase() === address.toLowerCase() || 
+                  transaction.to?.toLowerCase() === address.toLowerCase()) {
+                transactions.push({
+                  hash: transaction.hash,
+                  from: transaction.from,
+                  to: transaction.to || '',
+                  value: transaction.value,
+                  timestamp: block.timestamp
+                });
+              }
+            }
+          }
+        }
+
+        setRecentTransactions(transactions);
       } catch (err) {
-        console.error("Error fetching launched tokens:", err);
-        setError("Failed to fetch tokens. Please try again later.");
-        setLaunchedTokens([]);
+        console.error("Error fetching data:", err);
+        setError("Failed to fetch data. Please try again later.");
       } finally {
         setIsLoading(false);
       }
@@ -98,7 +128,7 @@ const Dashboard = () => {
     fetchLaunchedTokens();
   }, [address, isConnected, walletClient]);
 
-  const formatAvaxValue = (value: bigint): string => {
+  const formatValue = (value: bigint): string => {
     return Number(formatEther(value)).toFixed(4);
   };
 
@@ -129,6 +159,7 @@ const Dashboard = () => {
         </p>
       </div>
 
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6">
           <div className="flex items-center space-x-3 mb-4">
@@ -156,18 +187,19 @@ const Dashboard = () => {
           <div className="text-3xl font-bold">
             {launchedTokens
               .reduce(
-                (acc, token) =>
-                  acc + Number(formatAvaxValue(token.fundingRaised)),
+                (acc, token) => acc + Number(formatValue(token.fundingRaised)),
                 0
               )
               .toFixed(4)}{" "}
-            AVAX
+            EDU
           </div>
           <p className="text-sm text-gray-400 mt-1">Combined liquidity</p>
         </div>
       </div>
 
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Launched Tokens */}
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6">
           <h2 className="text-xl font-semibold mb-6">Your Launched Tokens</h2>
           {isLoading ? (
@@ -193,21 +225,13 @@ const Dashboard = () => {
                   className="flex items-center justify-between p-4 bg-black/20 rounded-xl hover:bg-black/30 transition cursor-pointer"
                 >
                   <div className="flex items-center space-x-4">
-                    {token.tokenImageUrl ? (
-                      <img
-                        src={token.tokenImageUrl}
-                        alt={token.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center">
-                        <Rocket className="h-5 w-5 text-purple-400" />
-                      </div>
-                    )}
+                    <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center">
+                      <Rocket className="h-5 w-5 text-purple-400" />
+                    </div>
                     <div>
                       <div className="font-medium">{token.name}</div>
                       <div className="text-sm text-gray-400">
-                        {formatAvaxValue(token.fundingRaised)} AVAX raised
+                        {formatValue(token.fundingRaised)} EDU raised
                       </div>
                     </div>
                   </div>
@@ -240,66 +264,58 @@ const Dashboard = () => {
           )}
         </div>
 
+        {/* Recent Activity */}
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6">
-          <div className="space-y-4">
-            <Card title="Recent Activity" className="sticky top-24">
-              <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                {"nfts" === "nfts" &&
-                  recentTransactions?.erc721Transfers?.map((tx) => (
-                    <div key={tx.logIndex} className="transaction-item">
-                      <div className="flex items-center gap-4">
-                        {tx.erc721Token.metadata.imageUri && (
-                          <img
-                            src={tx.erc721Token.metadata.imageUri}
-                            alt={tx.erc721Token.name}
-                            className="w-12 h-12 rounded-lg"
-                          />
+          <Card title="Recent Activity" className="sticky top-24">
+            <div className="space-y-4 max-h-[600px] overflow-y-auto">
+              {recentTransactions.map((tx) => (
+                <div key={tx.hash} className="transaction-item">
+                  <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center">
+                        {tx.from.toLowerCase() === address?.toLowerCase() ? (
+                          <motion.div
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                            className="text-red-400"
+                          >
+                            ↑
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                            className="text-green-400"
+                          >
+                            ↓
+                          </motion.div>
                         )}
-                        <div>
-                          <p className="text-sm font-semibold">
-                            {String(tx.from?.address) === address
-                              ? "Sent"
-                              : "Received"}
-                          </p>
-                          <p className="text-xs text-white/60">
-                            {tx.erc721Token.name} #{tx.erc721Token.tokenId}
-                          </p>
+                      </div>
+                      <div>
+                        <div className="font-medium">
+                          {tx.from.toLowerCase() === address?.toLowerCase()
+                            ? "Sent"
+                            : "Received"}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {formatValue(tx.value)} EDU
                         </div>
                       </div>
                     </div>
-                  ))}
-
-                {"erc20" === "erc20" &&
-                  recentTransactions?.erc20Transfers?.map((tx) => (
-                    <div key={tx.logIndex} className="transaction-item">
-                      <div className="flex items-center gap-4">
-                        {tx.erc20Token.logoUri && (
-                          <img
-                            src={tx.erc20Token.logoUri}
-                            alt={tx.erc20Token.name}
-                            className="w-12 h-12 rounded-full"
-                          />
-                        )}
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold">
-                            {String(tx.from?.address) === address
-                              ? "Sent"
-                              : "Received"}
-                          </p>
-                          <p className="text-xs text-white/60">
-                            {(
-                              Number(tx.value) /
-                              10 ** Number(tx.erc20Token.decimals)
-                            ).toLocaleString()}{" "}
-                            {tx.erc20Token.symbol}
-                          </p>
-                        </div>
-                      </div>
+                    <div className="text-sm text-gray-400">
+                      {new Date(tx.timestamp * 1000).toLocaleDateString()}
                     </div>
-                  ))}
-              </div>
-            </Card>
-          </div>
+                  </div>
+                </div>
+              ))}
+              {recentTransactions.length === 0 && (
+                <div className="text-center py-8">
+                  <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-400">No recent activity</p>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
       <BasicWallet />

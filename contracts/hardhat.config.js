@@ -6,15 +6,48 @@ module.exports = {
     compilers: [
       {
         version: "0.8.19",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
       {
         version: "0.8.24",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
       {
         version: "0.8.25",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
       {
         version: "0.8.28",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
+      },
+      {
+        version: "0.8.20",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
     ],
   },
@@ -32,6 +65,11 @@ module.exports = {
       url: `https://rpc.edu-chain.raas.gelato.cloud`,
       accounts: [process.env.ACCOUNT_PRIVATE_KEY],
     },
+    // Add local network for testing
+    localhost: {
+      url: "http://127.0.0.1:8545",
+      chainId: 31337,
+    }
   },
   etherscan: {
     apiKey: {

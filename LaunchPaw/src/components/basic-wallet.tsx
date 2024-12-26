@@ -2,185 +2,152 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import {
-  Erc1155TokenBalance,
-  Erc20TokenBalance,
-  TransactionDetails,
-} from "@avalabs/avacloud-sdk/models/components";
-import { Erc721TokenBalance } from "@avalabs/avacloud-sdk/models/components/erc721tokenbalance";
-import { Card } from "./Card";
-import { AvaCloudSDK } from "@avalabs/avacloud-sdk";
-const avaCloudSDK = new AvaCloudSDK({
-  apiKey: import.meta.env.VITE_AVACLOUD_API_KEY,
-  chainId: "43114", // Avalanche Mainnet
-  network: "mainnet",
-});
+import { ethers } from "ethers";
+
+interface TokenBalance {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  balance: string;
+}
+
+interface NFTBalance {
+  address: string;
+  tokenId: string;
+  name: string;
+  metadata?: {
+    name?: string;
+    image?: string;
+    description?: string;
+  }
+}
 
 export default function BasicWallet() {
-  // const { address } = useAccount();
-  const address = "0xC5ec7765481F90aCBcC61DE0bb5C7904f2E63077";
-  const [erc20Balances, setErc20Balances] = useState<Erc20TokenBalance[]>([]);
-  const [erc721Balances, setErc721Balances] = useState<Erc721TokenBalance[]>(
-    []
-  );
-  const [erc1155Balances, setErc1155Balances] = useState<Erc1155TokenBalance[]>(
-    []
-  );
-  const [recentTransactions, setRecentTransactions] =
-    useState<TransactionDetails>();
-  const [activeTab, setActiveTab] = useState("nfts");
+  const { address } = useAccount();
+  const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
+  const [nftBalances, setNftBalances] = useState<NFTBalance[]>([]);
+  const [activeTab, setActiveTab] = useState("tokens");
+  const [isLoading, setIsLoading] = useState(false);
 
-  async function getBlockHeight() {
-    const result = await avaCloudSDK.data.evm.blocks.getLatestBlocks({
-      pageSize: 1,
-    });
-    return Number(result.result.blocks[0].blockNumber);
-  }
+  // Standard ERC20 and ERC721 interfaces
+  const ERC20_ABI = [
+    "function balanceOf(address) view returns (uint256)",
+    "function decimals() view returns (uint8)",
+    "function symbol() view returns (string)",
+    "function name() view returns (string)"
+  ];
 
-  const listERC721Balances = async (address: string) => {
-    const result = await avaCloudSDK.data.evm.balances.listErc721Balances({
-      pageSize: 10,
-      address: address,
-    });
-    const balances: Erc721TokenBalance[] = [];
-    for await (const page of result) {
-      balances.push(...page.result.erc721TokenBalances);
-    }
-    return balances;
-  };
+  const ERC721_ABI = [
+    "function balanceOf(address) view returns (uint256)",
+    "function tokenOfOwnerByIndex(address, uint256) view returns (uint256)",
+    "function tokenURI(uint256) view returns (string)",
+    "function name() view returns (string)"
+  ];
 
-  const listErc1155Balances = async (address: string) => {
-    const result = await avaCloudSDK.data.evm.balances.listErc1155Balances({
-      pageSize: 10,
-      address: address,
-    });
-    const balances: Erc1155TokenBalance[] = [];
-    for await (const page of result) {
-      balances.push(...page.result.erc1155TokenBalances);
-    }
-    return balances;
-  };
-  const listRecentTransactions = async (address: string) => {
-    const blockHeight = await getBlockHeight();
-    const result = await avaCloudSDK.data.evm.transactions.listTransactions({
-      pageSize: 10,
-      startBlock: blockHeight - 100000,
-      endBlock: blockHeight,
-      address: address,
-      sortOrder: "desc",
-    });
-    const transactions: TransactionDetails = {
-      erc20Transfers: [],
-      erc721Transfers: [],
-      erc1155Transfers: [],
-      nativeTransaction: {
-        blockNumber: "",
-        blockTimestamp: 0,
-        blockHash: "",
-        blockIndex: 0,
-        txHash: "",
-        txStatus: "",
-        txType: 0,
-        gasLimit: "",
-        gasUsed: "",
-        gasPrice: "",
-        nonce: "",
-        from: {
-          name: undefined,
-          symbol: undefined,
-          decimals: undefined,
-          logoUri: undefined,
-          address: "",
-        },
-        to: {
-          name: undefined,
-          symbol: undefined,
-          decimals: undefined,
-          logoUri: undefined,
-          address: "",
-        },
-        value: "",
-      },
-    };
-    for await (const page of result) {
-      for (const transaction of page.result.transactions) {
-        if (transaction.erc20Transfers) {
-          if (transactions.erc20Transfers) {
-            transactions.erc20Transfers.push(...transaction.erc20Transfers);
-          }
-        } else if (transaction.erc721Transfers) {
-          if (transactions.erc721Transfers) {
-            transactions.erc721Transfers.push(...transaction.erc721Transfers);
-          }
-        } else if (transaction.erc1155Transfers) {
-          if (transactions.erc1155Transfers) {
-            transactions.erc1155Transfers.push(...transaction.erc1155Transfers);
-          }
+  const fetchTokenBalances = async (userAddress: string) => {
+    if (!window.ethereum) return;
+    
+    setIsLoading(true);
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const balances: TokenBalance[] = [];
+
+      // Add your token addresses here
+      const tokenAddresses: string[] = [
+        // Add your deployed LaunchPaw token addresses
+      ];
+
+      for (const tokenAddress of tokenAddresses) {
+        const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+        
+        const [balance, decimals, symbol, name] = await Promise.all([
+          contract.balanceOf(userAddress),
+          contract.decimals(),
+          contract.symbol(),
+          contract.name()
+        ]);
+
+        if (balance > 0) {
+          balances.push({
+            address: tokenAddress,
+            name,
+            symbol,
+            decimals,
+            balance: balance.toString()
+          });
         }
       }
+
+      setTokenBalances(balances);
+    } catch (error) {
+      console.error("Error fetching token balances:", error);
+    } finally {
+      setIsLoading(false);
     }
-    return transactions;
   };
 
-  async function listErc20Balances(address: string, blockNumber: string) {
-    const result = await avaCloudSDK.data.evm.balances.listErc20Balances({
-      blockNumber: blockNumber,
-      pageSize: 10,
-      address: address,
-    });
-    const balances: Erc20TokenBalance[] = [];
-    for await (const page of result) {
-      balances.push(...page.result.erc20TokenBalances);
+  const fetchNFTBalances = async (userAddress: string) => {
+    if (!window.ethereum) return;
+    
+    setIsLoading(true);
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const nfts: NFTBalance[] = [];
+
+      // Add your NFT contract addresses here
+      const nftAddresses: string[] = [
+        // Add your deployed NFT addresses
+      ];
+
+      for (const nftAddress of nftAddresses) {
+        const contract = new ethers.Contract(nftAddress, ERC721_ABI, provider);
+        const balance = await contract.balanceOf(userAddress);
+        const name = await contract.name();
+
+        for (let i = 0; i < balance; i++) {
+          const tokenId = await contract.tokenOfOwnerByIndex(userAddress, i);
+          let metadata = {};
+          
+          try {
+            const tokenURI = await contract.tokenURI(tokenId);
+            if (tokenURI) {
+              const response = await fetch(tokenURI);
+              metadata = await response.json();
+            }
+          } catch (error) {
+            console.error("Error fetching NFT metadata:", error);
+          }
+
+          nfts.push({
+            address: nftAddress,
+            tokenId: tokenId.toString(),
+            name,
+            metadata: metadata as any
+          });
+        }
+      }
+
+      setNftBalances(nfts);
+    } catch (error) {
+      console.error("Error fetching NFT balances:", error);
+    } finally {
+      setIsLoading(false);
     }
-    return balances;
-  }
-
-  const fetchERC20Balances = async (address: string) => {
-    const blockResult = await getBlockHeight();
-    const blockNumber = blockResult;
-    const balanceResult = await listErc20Balances(
-      address,
-      blockNumber.toString()
-    );
-    const balances = balanceResult;
-    return balances as Erc20TokenBalance[];
-  };
-
-  const fetchERC721Balances = async (address: string) => {
-    const result = await listERC721Balances(address);
-    const balances = result;
-    return balances as Erc721TokenBalance[];
-  };
-
-  const fetchERC1155Balances = async (address: string) => {
-    const result = await listErc1155Balances(address);
-    const balances = result;
-    return balances as Erc1155TokenBalance[];
-  };
-
-  const fetchRecentTransactions = async (address: string) => {
-    const result = await listRecentTransactions(address);
-    const transactions = result;
-    return transactions as TransactionDetails;
   };
 
   useEffect(() => {
     if (address) {
-      fetchERC20Balances(address).then(setErc20Balances);
-      fetchERC721Balances(address).then(setErc721Balances);
-      fetchERC1155Balances(address).then(setErc1155Balances);
-      fetchRecentTransactions(address).then(setRecentTransactions);
+      if (activeTab === "tokens") {
+        fetchTokenBalances(address);
+      } else {
+        fetchNFTBalances(address);
+      }
     }
-  }, [address]);
+  }, [address, activeTab]);
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-12"
-      ></motion.div>
       {address ? (
         <div className="flex lg:flex-row gap-8">
           <motion.main
@@ -189,7 +156,7 @@ export default function BasicWallet() {
             className="flex-grow"
           >
             <div className="flex gap-4 mb-8">
-              {["nfts", "erc20", "erc1155"].map((tab) => (
+              {["tokens", "nfts"].map((tab) => (
                 <motion.button
                   key={tab}
                   whileHover={{ scale: 1.05 }}
@@ -206,41 +173,21 @@ export default function BasicWallet() {
               ))}
             </div>
 
-            {activeTab === "nfts" && (
+            {isLoading ? (
               <motion.div
+                className="flex justify-center items-center p-12"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               >
-                {erc721Balances.map((nft, index) => (
-                  <motion.div
-                    key={`${nft.address}-${nft.tokenId}`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="token-card"
-                  >
-                    {nft.metadata.imageUri && (
-                      <img
-                        src={nft.metadata.imageUri}
-                        alt={nft.name}
-                        className="w-full h-48 object-cover rounded-lg mb-4"
-                      />
-                    )}
-                    <h3 className="text-lg font-semibold mb-2">{nft.name}</h3>
-                    <p className="text-sm text-white/60">#{nft.tokenId}</p>
-                  </motion.div>
-                ))}
+                <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
               </motion.div>
-            )}
-
-            {activeTab === "erc20" && (
+            ) : activeTab === "tokens" ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               >
-                {erc20Balances.map((token, index) => (
+                {tokenBalances.map((token, index) => (
                   <motion.div
                     key={token.address}
                     initial={{ opacity: 0, y: 20 }}
@@ -249,19 +196,11 @@ export default function BasicWallet() {
                     className="token-card"
                   >
                     <div className="flex items-center gap-4 mb-4">
-                      {token.logoUri ? (
-                        <img
-                          src={token.logoUri}
-                          alt={token.name}
-                          className="w-12 h-12 rounded-full"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-                          <span className="text-xl font-bold">
-                            {token.symbol?.[0]}
-                          </span>
-                        </div>
-                      )}
+                      <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                        <span className="text-xl font-bold">
+                          {token.symbol[0]}
+                        </span>
+                      </div>
                       <div>
                         <h3 className="text-lg font-semibold">{token.name}</h3>
                         <p className="text-sm text-white/60">{token.symbol}</p>
@@ -269,41 +208,47 @@ export default function BasicWallet() {
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary-300">
-                        {(
-                          Number(token.balance) /
-                          10 ** Number(token.decimals)
-                        ).toLocaleString(undefined, {
+                        {(Number(token.balance) / 10 ** token.decimals).toLocaleString(undefined, {
                           maximumFractionDigits: 4,
                         })}
                       </p>
                     </div>
                   </motion.div>
                 ))}
+                {tokenBalances.length === 0 && (
+                  <p className="text-center text-white/60 col-span-3">No tokens found</p>
+                )}
               </motion.div>
-            )}
-
-            {activeTab === "erc1155" && (
+            ) : (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               >
-                {erc1155Balances.map((token, index) => (
+                {nftBalances.map((nft, index) => (
                   <motion.div
-                    key={`${token.address}-${token.tokenId}`}
+                    key={`${nft.address}-${nft.tokenId}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
                     className="token-card"
                   >
+                    {nft.metadata?.image && (
+                      <img
+                        src={nft.metadata.image}
+                        alt={nft.metadata.name || nft.name}
+                        className="w-full h-48 object-cover rounded-lg mb-4"
+                      />
+                    )}
                     <h3 className="text-lg font-semibold mb-2">
-                      {token.metadata?.name || `Token #${token.tokenId}`}
+                      {nft.metadata?.name || nft.name}
                     </h3>
-                    <p className="text-2xl font-bold text-primary-300">
-                      {token.balance}
-                    </p>
+                    <p className="text-sm text-white/60">#{nft.tokenId}</p>
                   </motion.div>
                 ))}
+                {nftBalances.length === 0 && (
+                  <p className="text-center text-white/60 col-span-3">No NFTs found</p>
+                )}
               </motion.div>
             )}
           </motion.main>

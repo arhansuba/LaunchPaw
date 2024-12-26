@@ -1,7 +1,7 @@
+"use client";
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { MessageCircle, X, Send } from "lucide-react";
-import Cerebras from "@cerebras/cerebras_cloud_sdk";
 import ChatMessage from "./ChatMessage";
 
 interface Message {
@@ -9,30 +9,35 @@ interface Message {
   isBot: boolean;
 }
 
-interface ChatCompletionChoice {
-  message: {
-    content: string;
-    role: string;
-  };
-  finish_reason: string;
-  index: number;
-}
+const PRESET_RESPONSES = {
+  default: "I'm here to help you with token launches and blockchain interactions. How can I assist you?",
+  token: "To create a new token, you'll need to:\n1. Connect your wallet\n2. Fill in token details (name, symbol)\n3. Set funding goals\n4. Launch your token",
+  price: "Token prices are determined by our bonding curve algorithm, which ensures fair price discovery based on supply and demand.",
+  liquidity: "Liquidity is automatically added to the native liquidity pool once the funding goal is reached.",
+  wallet: "Please make sure your wallet is connected and you have enough EDU tokens for gas fees.",
+  help: "I can help you with:\n• Token creation and launches\n• Understanding bonding curves\n• Liquidity pool mechanics\n• General blockchain questions",
+};
 
-interface ChatCompletionResponse {
-  id: string;
-  choices: ChatCompletionChoice[];
-  created: number;
-  model: string;
-  object: string;
-}
-
-const formatBotResponse = (text: string): string => {
-  const formattedText = text
-    .replace(/•/g, "\n•")
-    .replace(/(\d+\.\s)/g, "\n$1")
-    .replace(/(\*\*.*?\*\*)/g, "\n$1\n");
-
-  return formattedText.replace(/\n{3,}/g, "\n\n").trim();
+const findBestResponse = (input: string): string => {
+  const lowercaseInput = input.toLowerCase();
+  
+  if (lowercaseInput.includes("create") || lowercaseInput.includes("token") || lowercaseInput.includes("launch")) {
+    return PRESET_RESPONSES.token;
+  }
+  if (lowercaseInput.includes("price") || lowercaseInput.includes("cost")) {
+    return PRESET_RESPONSES.price;
+  }
+  if (lowercaseInput.includes("liquidity") || lowercaseInput.includes("pool")) {
+    return PRESET_RESPONSES.liquidity;
+  }
+  if (lowercaseInput.includes("wallet") || lowercaseInput.includes("connect")) {
+    return PRESET_RESPONSES.wallet;
+  }
+  if (lowercaseInput.includes("help") || lowercaseInput.includes("what")) {
+    return PRESET_RESPONSES.help;
+  }
+  
+  return PRESET_RESPONSES.default;
 };
 
 const Chatbot = () => {
@@ -47,10 +52,6 @@ const Chatbot = () => {
   const [isLoading, setIsLoading] = useState(false);
   const location = useLocation();
 
-  const client = new Cerebras({
-    apiKey: "csk-pfdwvj9f6mmfe5n698txm9m5ryvpmxv3t3n66evyvrnpc2rm",
-  });
-
   useEffect(() => {
     setIsOpen(false);
   }, [location]);
@@ -64,29 +65,13 @@ const Chatbot = () => {
     setInput("");
     setIsLoading(true);
 
-    try {
-      const completionCreateResponse = (await client.chat.completions.create({
-        messages: [{ role: "user", content: input }],
-        model: "llama3.1-8b",
-      })) as ChatCompletionResponse;
-
-      const botResponseText = formatBotResponse(
-        completionCreateResponse.choices[0]?.message?.content ||
-          "Sorry, I didn't understand that."
-      );
-
-      const botMessage: Message = { text: botResponseText, isBot: true };
+    // Simulate AI response delay
+    setTimeout(() => {
+      const botResponse = findBestResponse(input);
+      const botMessage: Message = { text: botResponse, isBot: true };
       setMessages((prevMessages) => [...prevMessages, botMessage]);
-    } catch (error) {
-      console.error("Error:", error);
-      const errorMessage: Message = {
-        text: "Sorry, I encountered an error. Please try again.",
-        isBot: true,
-      };
-      setMessages((prevMessages) => [...prevMessages, errorMessage]);
-    } finally {
       setIsLoading(false);
-    }
+    }, 1000);
   };
 
   return (
@@ -106,9 +91,7 @@ const Chatbot = () => {
           <div className="flex items-center justify-between p-4 border-b border-purple-500/20">
             <div className="flex items-center space-x-2">
               <MessageCircle className="h-5 w-5 text-purple-400" />
-              <span className="font-medium text-white">
-                Token Launch Assistant
-              </span>
+              <span className="font-medium text-white">Token Launch Assistant</span>
             </div>
             <button
               onClick={() => setIsOpen(false)}

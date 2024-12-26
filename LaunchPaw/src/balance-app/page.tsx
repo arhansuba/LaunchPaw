@@ -1,46 +1,37 @@
 "use client";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Erc20TokenBalance } from "@avalabs/avacloud-sdk/models/components/erc20tokenbalance";
+import { ethers } from "ethers";
 import { Card } from "../components/Card";
-import { AvaCloudSDK } from "@avalabs/avacloud-sdk";
-import { get } from "http";
-import { li } from "framer-motion/client";
 import Chatbot from "../components/ChatBot";
 
-const avaCloudSDK = new AvaCloudSDK({
-  apiKey: import.meta.env.VITE_AVACLOUD_API_KEY,
-  chainId: "43114",
-  network: "mainnet",
-});
+// Standard ERC20 ABI for balanceOf and decimals functions
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+  "function name() view returns (string)"
+];
+
+interface TokenBalance {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  balance: string;
+}
 
 export default function BalanceApp() {
   const [address, setAddress] = useState<string>("");
   const [inputValue, setInputValue] = useState<string>("");
-  const [balances, setBalances] = useState<Erc20TokenBalance[]>([]);
+  const [balances, setBalances] = useState<TokenBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
-  async function getBlockHeight() {
-    console.log("getBlockHeight started");
-    const result = await avaCloudSDK.data.evm.blocks.getLatestBlocks({
-      pageSize: 1,
-    });
-    return result.result.blocks[0].blockNumber;
-  }
-
-  async function listErc20Balances(address: string, blockNumber: string) {
-    const result = await avaCloudSDK.data.evm.balances.listErc20Balances({
-      blockNumber: blockNumber,
-      pageSize: 10,
-      address: address,
-    });
-    const balances: Erc20TokenBalance[] = [];
-    for await (const page of result) {
-      balances.push(...page.result.erc20TokenBalances);
-    }
-    return balances;
-  }
+  // Common token addresses on EduChain testnet (to be replaced with actual addresses)
+  const COMMON_TOKENS = [
+    "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+  ];
 
   const handleSetAddress = async () => {
     const addressPattern = /^0x[a-fA-F0-9]{40}$/;
@@ -52,12 +43,10 @@ export default function BalanceApp() {
 
     setError("");
     setAddress(inputValue);
-    console.log("Input value", inputValue);
     setIsLoading(true);
 
     try {
-      const balances = await fetchERC20Balances(inputValue);
-      console.log("balances", balances);
+      const balances = await fetchTokenBalances(inputValue);
       setBalances(balances);
     } catch (err) {
       setError("Failed to fetch balances");
@@ -67,23 +56,38 @@ export default function BalanceApp() {
     }
   };
 
-  const fetchERC20Balances = async (address: string) => {
-    console.log("Blockresult started");
-    const blockNumber = await getBlockHeight();
-    console.log("blockResult", blockNumber);
-    const balanceResult = await listErc20Balances(address, blockNumber);
-    console.log("balanceResult", balanceResult);
-    const balances = balanceResult.map((balance) => {
-      return {
-        address: balance.address,
-        name: balance.name,
-        symbol: balance.symbol,
-        decimals: balance.decimals,
-        balance: balance.balance,
-        logoUri: balance.logoUri,
-      };
-    });
-    return balances as Erc20TokenBalance[];
+  const fetchTokenBalances = async (address: string): Promise<TokenBalance[]> => {
+    // Connect to EduChain network
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    
+    const balances: TokenBalance[] = [];
+    
+    for (const tokenAddress of COMMON_TOKENS) {
+      try {
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, await provider.getSigner());
+        
+        const [balance, decimals, symbol, name] = await Promise.all([
+          tokenContract.balanceOf(address),
+          tokenContract.decimals(),
+          tokenContract.symbol(),
+          tokenContract.name()
+        ]);
+
+        if (balance.gt(0)) {
+          balances.push({
+            address: tokenAddress,
+            name,
+            symbol,
+            decimals,
+            balance: balance.toString()
+          });
+        }
+      } catch (error) {
+        console.error(`Error fetching balance for token ${tokenAddress}:`, error);
+      }
+    }
+    
+    return balances;
   };
 
   const LoadingSpinner = () => (
@@ -117,16 +121,6 @@ export default function BalanceApp() {
       >
         Fetching token balances...
       </motion.p>
-      <motion.div
-        className="mt-4 flex gap-2"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-      >
-        <div className="w-2 h-2 rounded-full bg-primary-300 animate-pulse" />
-        <div className="w-2 h-2 rounded-full bg-primary-400 animate-pulse delay-100" />
-        <div className="w-2 h-2 rounded-full bg-primary-500 animate-pulse delay-200" />
-      </motion.div>
     </motion.div>
   );
 
@@ -142,7 +136,7 @@ export default function BalanceApp() {
           Token Balance Explorer
         </h1>
         <p className="text-xl text-white/60 mb-12 max-w-2xl mx-auto">
-          View token balances for any address on the network
+          View token balances for any address on EduChain
         </p>
 
         <motion.div
@@ -203,19 +197,11 @@ export default function BalanceApp() {
                   className="token-card group"
                 >
                   <div className="flex items-center gap-4">
-                    {token.logoUri ? (
-                      <img
-                        src={token.logoUri}
-                        alt={token.name}
-                        className="w-12 h-12 rounded-full bg-white/5 p-1"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-                        <span className="text-xl font-bold text-white/30">
-                          {token.symbol?.[0]}
-                        </span>
-                      </div>
-                    )}
+                    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
+                      <span className="text-xl font-bold text-white/30">
+                        {token.symbol[0]}
+                      </span>
+                    </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold mb-1 group-hover:text-primary-300 transition-colors">
                         {token.name}
@@ -226,32 +212,14 @@ export default function BalanceApp() {
                       <p className="text-lg font-semibold text-primary-300">
                         {(
                           Number(token.balance) /
-                          10 ** Number(token.decimals)
+                          10 ** token.decimals
                         ).toLocaleString(undefined, {
                           maximumFractionDigits: 4,
                         })}
                       </p>
-                      <a
-                        href={`https://snowtrace.io/token/${token.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-white/40 hover:text-white/60 transition-colors inline-flex items-center gap-1"
-                      >
-                        View Contract
-                        <svg
-                          className="w-3 h-3"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M14 5l7 7m0 0l-7 7m7-7H3"
-                          />
-                        </svg>
-                      </a>
+                      <span className="text-xs text-white/40">
+                        {token.symbol}
+                      </span>
                     </div>
                   </div>
                 </motion.div>

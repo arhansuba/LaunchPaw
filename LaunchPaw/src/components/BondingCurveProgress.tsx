@@ -1,3 +1,4 @@
+"use client";
 import React, { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { useWalletClient } from "wagmi";
@@ -16,7 +17,7 @@ interface BondingCurveProgressProps {
   tokenAddress: string;
 }
 
-interface MemeToken {
+interface LaunchPawToken {
   name: string;
   symbol: string;
   description: string;
@@ -34,7 +35,7 @@ const BondingCurveProgress: React.FC<BondingCurveProgressProps> = ({
   tokenAddress,
 }) => {
   const { data: walletClient } = useWalletClient();
-  const [token, setToken] = useState<MemeToken | null>(null);
+  const [token, setToken] = useState<LaunchPawToken | null>(null);
   const [currentLiquidity, setCurrentLiquidity] = useState<bigint>(BigInt(0));
   const [isLoading, setIsLoading] = useState(true);
   const [isClaimingReward, setIsClaimingReward] = useState(false);
@@ -62,16 +63,16 @@ const BondingCurveProgress: React.FC<BondingCurveProgressProps> = ({
       await tx.wait();
 
       // Refresh token data after claiming
-      const tokenData = await contract.addressToMemeTokenMapping(tokenAddress);
+      const tokenData = await contract.getTokenInfo(tokenAddress);
       setToken({
-        name: tokenData[0],
-        symbol: tokenData[1],
-        description: tokenData[2],
-        tokenImageUrl: tokenData[3],
-        fundingRaised: tokenData[4],
-        tokenAddress: tokenData[5],
-        creatorAddress: tokenData[6],
-        isLiquidityCreated: tokenData[7],
+        name: tokenData.name,
+        symbol: tokenData.symbol,
+        description: tokenData.description,
+        tokenImageUrl: tokenData.imageUrl,
+        fundingRaised: tokenData.currentFunding,
+        tokenAddress: tokenAddress,
+        creatorAddress: tokenData.creator,
+        isLiquidityCreated: tokenData.isLaunched
       });
     } catch (error) {
       console.error("Error claiming reward:", error);
@@ -94,19 +95,17 @@ const BondingCurveProgress: React.FC<BondingCurveProgressProps> = ({
           signer
         );
 
-        const tokenData = await contract.addressToMemeTokenMapping(
-          tokenAddress
-        );
+        const tokenData = await contract.getTokenInfo(tokenAddress);
 
-        const data: MemeToken = {
-          name: tokenData[0],
-          symbol: tokenData[1],
-          description: tokenData[2],
-          tokenImageUrl: tokenData[3],
-          fundingRaised: tokenData[4],
-          tokenAddress: tokenData[5],
-          creatorAddress: tokenData[6],
-          isLiquidityCreated: tokenData[7],
+        const data: LaunchPawToken = {
+          name: tokenData.name,
+          symbol: tokenData.symbol,
+          description: tokenData.description,
+          tokenImageUrl: tokenData.imageUrl,
+          fundingRaised: tokenData.currentFunding,
+          tokenAddress: tokenAddress,
+          creatorAddress: tokenData.creator,
+          isLiquidityCreated: tokenData.isLaunched
         };
 
         setToken(data);
@@ -178,13 +177,13 @@ const BondingCurveProgress: React.FC<BondingCurveProgressProps> = ({
             <div className="flex justify-between items-center">
               <span>Current Liquidity</span>
               <span className="font-medium">
-                {ethers.formatEther(currentLiquidity)} AVAX
+                {ethers.formatEther(currentLiquidity)} EDU
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span>Target Liquidity</span>
               <span className="font-medium">
-                {Number(targetLiquidity).toFixed(4)} AVAX
+                {Number(targetLiquidity).toFixed(4)} EDU
               </span>
             </div>
           </div>
